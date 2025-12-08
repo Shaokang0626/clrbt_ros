@@ -8,9 +8,9 @@
     <!-- Import control_xacro -->
     <xacro:include filename="cl_arms.ros2_control.xacro" />
 
-    
-
-
-    <xacro:cl_arms_ros2_control name="FakeSystem" initial_positions_file="$(arg initial_positions_file)"/>
+    <xacro:cl_arms_ros2_control
+    name="FakeSystem" 
+    initial_positions_file="$(arg initial_positions_file)"
+    plugin_name = "annin_ar4_driver/ARHardwareInterface" />
 
 </robot>

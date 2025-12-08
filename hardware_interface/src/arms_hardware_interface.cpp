@@ -1,9 +1,9 @@
 #include <rclcpp/rclcpp.hpp>
-#include "hardward_interface/arms_hardward_interface.hpp"
+#include "arms_hardware_interface.hpp"
 
 namespace arms_hardware_interface{
 
-hardware_interface::CallbackReturn ARHardwareInterface::on_init(
+hardware_interface::CallbackReturn ArmsHardwareInterface::on_init(
     const hardware_interface::HardwareInfo& info) {
   RCLCPP_INFO(logger_, "Initializing hardware interface...");
 
@@ -51,7 +51,7 @@ hardware_interface::CallbackReturn ARHardwareInterface::on_init(
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
-void ARHardwareInterface::init_variables() {
+void ArmsHardwareInterface::init_variables() {
   // resize vectors
   int num_joints = info_.joints.size();
   actuator_pos_commands_.resize(num_joints);
@@ -71,7 +71,7 @@ void ARHardwareInterface::init_variables() {
   }
 }
 
-hardware_interface::CallbackReturn ARHardwareInterface::on_activate(
+hardware_interface::CallbackReturn ArmsHardwareInterface::on_activate(
     const rclcpp_lifecycle::State& /*previous_state*/) {
   RCLCPP_INFO(logger_, "Activating hardware interface...");
 
@@ -86,14 +86,14 @@ hardware_interface::CallbackReturn ARHardwareInterface::on_activate(
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
-hardware_interface::CallbackReturn ARHardwareInterface::on_deactivate(
+hardware_interface::CallbackReturn ArmsHardwareInterface::on_deactivate(
     const rclcpp_lifecycle::State& /*previous_state*/) {
   RCLCPP_INFO(logger_, "Deactivating hardware interface...");
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
 std::vector<hardware_interface::StateInterface>
-ARHardwareInterface::export_state_interfaces() {
+ArmsHardwareInterface::export_state_interfaces() {
   std::vector<hardware_interface::StateInterface> state_interfaces;
 
   for (size_t i = 0; i < info_.joints.size(); ++i) {
@@ -106,7 +106,7 @@ ARHardwareInterface::export_state_interfaces() {
 }
 
 std::vector<hardware_interface::CommandInterface>
-ARHardwareInterface::export_command_interfaces() {
+ArmsHardwareInterface::export_command_interfaces() {
   std::vector<hardware_interface::CommandInterface> command_interfaces;
   for (size_t i = 0; i < info_.joints.size(); ++i) {
     command_interfaces.emplace_back(info_.joints[i].name, "position",
@@ -117,7 +117,7 @@ ARHardwareInterface::export_command_interfaces() {
   return command_interfaces;
 }
 
-hardware_interface::return_type ARHardwareInterface::read(
+hardware_interface::return_type ArmsHardwareInterface::read(
     const rclcpp::Time& /*time*/, const rclcpp::Duration& /*period*/) {
   driver_.getJointPositions(actuator_positions_);
   driver_.getJointVelocities(actuator_velocities_);
@@ -129,7 +129,7 @@ hardware_interface::return_type ARHardwareInterface::read(
   return hardware_interface::return_type::OK;
 }
 
-hardware_interface::return_type ARHardwareInterface::write(
+hardware_interface::return_type ArmsHardwareInterface::write(
     const rclcpp::Time& /*time*/, const rclcpp::Duration& /*period*/) {
   for (size_t i = 0; i < info_.joints.size(); ++i) {
     // convert from rad to deg, apply offsets
