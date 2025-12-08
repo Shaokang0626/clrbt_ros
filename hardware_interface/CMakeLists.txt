@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(hardware_interface)
+project(arms_hardware_interface)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -17,11 +17,11 @@ find_package(rclcpp_lifecycle REQUIRED)
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
 
-add_library(hardware_interface SHARED 
+add_library(arms_hardware_interface SHARED 
   src/arms_hardware_interface.cpp
 )
 
-ament_target_dependencies(hardware_interface 
+ament_target_dependencies(arms_hardware_interface 
   controller_manager
   hardware_interface
   pluginlib
@@ -29,7 +29,7 @@ ament_target_dependencies(hardware_interface
   rclcpp_lifecycle
   )
 
-target_include_directories(hardware_interface PUBLIC
+target_include_directories(arms_hardware_interface PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
   )
@@ -37,13 +37,16 @@ target_include_directories(hardware_interface PUBLIC
 pluginlib_export_plugin_description_file(arms_hardware_interface arms_hardware_interface_plugin.xml)
 
 
-install(TARGETS hardware_interface
+install(TARGETS arms_hardware_interface
   EXPORT export_arms_hardware_interface
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin
 )
 
+install(DIRECTORY include/
+  DESTINATION include/${PROJECT_NAME}
+)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

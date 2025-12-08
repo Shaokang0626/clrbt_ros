@@ -1,145 +1,212 @@
-from moveit_configs_utils import MoveItConfigsBuilder
-from moveit_configs_utils.launches import generate_demo_launch
-from launch.substitutions import Command, PathJoinSubstitution
-from launch_ros.substitutions import FindPackageShare
-from launch.actions import IncludeLaunchDescription, TimerAction, RegisterEventHandler
-from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch import LaunchDescription
-from launch.event_handlers import OnProcessStart
-from launch_ros.actions import Node
-from launch_ros.parameter_descriptions import ParameterValue
 import os
+import yaml
 
+from ament_index_python.packages import get_package_share_directory
+from launch_param_builder import ParameterBuilder
+from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterFile
+from launch_ros.substitutions import FindPackageShare
 
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument
+from launch.conditions import IfCondition
+from launch.substitutions import (
+    Command,
+    FindExecutable,
+    LaunchConfiguration,
+    PathJoinSubstitution,
+)
+
+def load_yaml(package_name, file_name):
+    package_path = get_package_share_directory(package_name)
+    absolute_file_path = os.path.join(package_path, file_name)
+    with open(absolute_file_path, "r", encoding="utf-8") as file:
+        return yaml.safe_load(file)
+    
 def generate_launch_description():
-    moveit_config_pkg = FindPackageShare('clgx_arm_moveit_config')
-    hardware_interface_pkg = FindPackageShare("arm_hardware_interface")
-    description_pkg = FindPackageShare("arms_description")
-    
-    # 运动学配置文件路径
-    kinematics_yaml = PathJoinSubstitution(
-        [moveit_config_pkg, 'config', 'kinematics.yaml']
-    )
-    
-    controllers_yaml = PathJoinSubstitution(
-        [moveit_config_pkg, 'config', 'ros2_controllers.yaml']
-    )
 
+    # Launch Arguments
     robot_description_content = Command([
-        'xacro ',
+        PathJoinSubstitution([FindExecutable(name="xacro")]),
+        " ",
         PathJoinSubstitution([
-            moveit_config_pkg, 'config', 'T170_ARMS.urdf.xacro'
+            FindPackageShare("arms_moveit_config"),
+            "config",
+            "cl_arms.urdf.xacro",
         ]),
-        ' initial_positions_file:=',
-        PathJoinSubstitution([
-            moveit_config_pkg, 'config', 'initial_positions.yaml'
-        ])
     ])
-    robot_description = {'robot_description': robot_description_content}
+    robot_description = {"robot_description": robot_description_content}
 
-    # 加载运动学配置
+    # MoveIt Configuration
+    robot_description_semantic_content = Command([
+        PathJoinSubstitution([FindExecutable(name="xacro")]),
+        " ",
+        PathJoinSubstitution([
+            FindPackageShare("annin_ar4_moveit_config"), "srdf",
+            "ar.srdf.xacro"
+        ]),
+    ])
+    robot_description_semantic = {
+        "robot_description_semantic": robot_description_semantic_content
+    }
+
     robot_description_kinematics = {
-        'robot_description_kinematics': ParameterValue(
-            kinematics_yaml, value_type=str
+        "robot_description_kinematics":
+        load_yaml(
+            "annin_ar4_moveit_config",
+            os.path.join("config", "kinematics.yaml"),
         )
     }
 
-    rsp_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            PathJoinSubstitution([moveit_config_pkg, 'launch', 'rsp.launch.py'])
-        ),
-        # 向rsp.launch.py传递运动学参数
-        launch_arguments={
-            'robot_description_kinematics': kinematics_yaml
-        }.items()
+    joint_limits = ParameterFile(
+        PathJoinSubstitution([
+            FindPackageShare("annin_ar4_moveit_config"),
+            "config/joint_limits.yaml"
+        ]),
+        allow_substs=True,
     )
 
-    # 配置MoveGroup启动参数，添加运动学配置
-    move_group_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            PathJoinSubstitution([moveit_config_pkg, 'launch', 'move_group.launch.py'])
-        ),
-        launch_arguments={
-            'robot_description_kinematics': kinematics_yaml,
-            'allow_trajectory_execution': 'true',
-            'capabilities': 'move_group/MoveGroupCartesianPathService move_group/ExecuteTrajectoryAction',
-            'disable_capabilities': '',
-            'publish_monitored_planning_scene': 'true',
-            'publish_robot_description_semantic': 'true'
-        }.items()
+    # Planning Configuration
+    ompl_planning_yaml = load_yaml("annin_ar4_moveit_config",
+                                   "config/ompl_planning.yaml")
+    pilz_planning_yaml = load_yaml("annin_ar4_moveit_config",
+                                   "config/pilz_planning.yaml")
+    planning_pipeline_config = {
+        "default_planning_pipeline": "ompl",
+        "planning_pipelines": ["ompl", "pilz"],
+        "ompl": ompl_planning_yaml,
+        "pilz": pilz_planning_yaml,
+    }
+
+    moveit_controller_manager = {
+        "moveit_controller_manager":
+        "moveit_simple_controller_manager/MoveItSimpleControllerManager",
+    }
+
+    moveit_controllers = ParameterFile(
+        PathJoinSubstitution([
+            FindPackageShare("annin_ar4_moveit_config"),
+            "config/controllers.yaml"
+        ]),
+        allow_substs=True,
     )
 
-    rviz_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            PathJoinSubstitution([moveit_config_pkg, 'launch', 'moveit_rviz.launch.py'])
-        )
-    )
+    trajectory_execution = {
+        "moveit_manage_controllers": False,
+        "trajectory_execution.allowed_execution_duration_scaling": 1.2,
+        "trajectory_execution.allowed_goal_duration_margin": 0.5,
+        "trajectory_execution.allowed_start_tolerance": 0.01,
+    }
 
-    # 启动 ros2_control_node（硬件控制系统）
-    controller_manager_node = Node(
-        package='controller_manager',
-        executable='ros2_control_node',
+    planning_scene_monitor_parameters = {
+        "publish_planning_scene": True,
+        "publish_geometry_updates": True,
+        "publish_state_updates": True,
+        "publish_transforms_updates": True,
+    }
+
+    # Start the actual move_group node/action server
+    run_move_group_node = Node(
+        package="moveit_ros_move_group",
+        executable="move_group",
+        output="screen",
         parameters=[
-            robot_description, 
-            controllers_yaml,
-            robot_description_kinematics  # 添加运动学参数
+            robot_description,
+            robot_description_semantic,
+            robot_description_kinematics,
+            joint_limits,
+            planning_pipeline_config,
+            trajectory_execution,
+            moveit_controller_manager,
+            moveit_controllers,
+            planning_scene_monitor_parameters,
         ],
-        output='both'
     )
 
-    # 启动 环境限制节点
-    scene_publisher_node = Node(
-        package='clgx_arm_moveit_config',
-        executable='scene_limit',
-        name='scene_limit',
-        output='screen'
+    # RViz
+    rviz_base = os.path.join(
+        get_package_share_directory("annin_ar4_moveit_config"), "rviz")
+    rviz_full_config = os.path.join(rviz_base, "moveit.rviz")
+
+    rviz_node = Node(
+        package="rviz2",
+        executable="rviz2",
+        name="rviz2",
+        output="log",
+        arguments=["-d", rviz_full_config],
+        parameters=[
+            robot_description,
+            robot_description_semantic,
+            robot_description_kinematics,
+            planning_pipeline_config,
+        ],
+    )
+    # Publish TF
+    robot_state_publisher = Node(
+        package="robot_state_publisher",
+        executable="robot_state_publisher",
+        name="robot_state_publisher",
+        output="both",
+        parameters=[robot_description],
     )
 
-    # 控制器 spawner 节点（通过事件触发）
+    # ros2_control using FakeSystem as hardware
+    ros2_controllers = ParameterFile(PathJoinSubstitution(
+        [FindPackageShare("annin_ar4_driver"), "config", "controllers.yaml"]),
+                                     allow_substs=True)
+
+    ros2_control_node = Node(
+        package="controller_manager",
+        executable="ros2_control_node",
+        parameters=[
+            robot_description,
+            ros2_controllers,
+            {
+                "tf_prefix": tf_prefix
+            },
+        ],
+        output="both",
+    )
+
     joint_state_broadcaster_spawner = Node(
-        package='controller_manager',
-        executable='spawner',
-        arguments=['joint_state_broadcaster'],
-        output='screen'
+        package="controller_manager",
+        executable="spawner",
+        arguments=[
+            "joint_state_broadcaster",
+            "-c",
+            "/controller_manager",
+        ],
     )
 
-    right_arm_position_controller_spawner = Node(
-        package='controller_manager',
-        executable='spawner',
-        arguments=['right_arm_position_controller'],
-        output='screen'
+    joint_controller_spawner = Node(
+        package="controller_manager",
+        executable="spawner",
+        arguments=[
+            "joint_trajectory_controller",
+            "-c",
+            "/controller_manager",
+        ],
     )
 
-    left_arm_position_controller_spawner = Node(
-        package='controller_manager',
-        executable='spawner',
-        arguments=['left_arm_position_controller'],
-        output='screen'
-    )
-
-    # 在 controller_manager 启动后再启动所有 spawner
-    controller_spawner_handler = RegisterEventHandler(
-        event_handler=OnProcessStart(
-            target_action=controller_manager_node,
-            on_start=[
-                TimerAction(
-                    period=1.0,
-                    actions=[
-                        joint_state_broadcaster_spawner,
-                        right_arm_position_controller_spawner,
-                        left_arm_position_controller_spawner,
-                    ]
-                )
-            ]
-        )
+    gripper_controller_spawner = Node(
+        package="controller_manager",
+        executable="spawner",
+        arguments=[
+            "gripper_controller",
+            "-c",
+            "/controller_manager",
+        ],
     )
 
     return LaunchDescription([
-        rsp_launch,
-        controller_manager_node,
-        controller_spawner_handler,  # 保证 controller_manager 启动后再加载控制器
-        move_group_launch,
-        rviz_launch,
-        TimerAction(period=5.0, actions=[scene_publisher_node])
-        # TimerAction(period=3.0, actions=[ti5_node])  # 接口节点延迟启动
+        db_arg,
+        ar_model_arg,
+        tf_prefix_arg,
+        run_move_group_node,
+        rviz_node,
+        robot_state_publisher,
+        ros2_control_node,
+        joint_state_broadcaster_spawner,
+        joint_controller_spawner,
+        gripper_controller_spawner,
     ])
