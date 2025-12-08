@@ -1,0 +1,47 @@
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Alpha: 1
+      Name: RobotModel
+      Enabled: true
+      Robot Description: robot_description
+      Type: rviz/RobotModel
+    - Name: TF
+      Enabled: true
+      Frame Timeout: 15.0
+      Show Arrows: true
+      Show Axes: true
+      Show Names: true
+      Type: rviz/TF
+  Fixed Frame: base_link
+  Name: root
+  Tools:
+    - Class: rviz/Interact
+    - Class: rviz/MoveCamera
+    - Class: rviz/Select
+    - Class: rviz/FocusCamera
+    - Class: rviz/Measure
+    - Class: rviz/SetInitialPose
+    - Class: rviz/SetGoal
+  View Manager:
+    Current:
+      Class: rviz/Orbit
+      Distance: 2.0
+      Focal Point:
+        X: 0
+        Y: 0
+        Z: 0
+      Pitch: 0.785
+      Target Frame: base_link
+      Yaw: 0.785
+    Saved: {}
+  Enabled: true
+  Name: root
+  Global Options:
+    Background Color:
+      B: 0
+      G: 0
+      R: 0
+    Fixed Frame: base_link
+    Frame Rate: 30
+

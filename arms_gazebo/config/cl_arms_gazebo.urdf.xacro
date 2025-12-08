@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://wiki.ros.org/xacro" name="cl_arms">
+	<xacro:include filename = "$(find arms_description)/urdf/cl_arms.urdf.xacro" >
+  <xacro:include filename = "$(find arms_moveit_config)/config/cl_arms.ros2_control.xacro">
+
+
+  <xacro:cl_arms_ros2_control
+    plugin_name="gz_ros2_control/GazeboSimSystem"
+    calibrate="False"
+    robot_parameters_file="$(find annin_ar4_description)/config/$(arg ar_model).yaml"
+    joint_offset_parameters_file="$(find annin_ar4_driver)/config/joint_offsets/$(arg ar_model).yaml"
+    driver_parameters_file="$(find annin_ar4_driver)/config/driver.yaml"
+    tf_prefix="$(arg tf_prefix)"
+  />
