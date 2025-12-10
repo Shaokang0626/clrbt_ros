@@ -6,7 +6,7 @@ from launch_param_builder import ParameterBuilder
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterFile
 from launch_ros.substitutions import FindPackageShare
-
+from launch_ros.parameter_descriptions import ParameterValue
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.conditions import IfCondition
@@ -35,47 +35,45 @@ def generate_launch_description():
             "cl_arms.urdf.xacro",
         ]),
     ])
-    robot_description = {"robot_description": robot_description_content}
+    robot_description = {"robot_description": ParameterValue(robot_description_content,value_type=str)}
 
     # MoveIt Configuration
     robot_description_semantic_content = Command([
         PathJoinSubstitution([FindExecutable(name="xacro")]),
         " ",
         PathJoinSubstitution([
-            FindPackageShare("annin_ar4_moveit_config"), "srdf",
-            "ar.srdf.xacro"
+            FindPackageShare("arms_moveit_config"), "config",
+            "cl_arms.srdf.xacro"
         ]),
     ])
     robot_description_semantic = {
-        "robot_description_semantic": robot_description_semantic_content
+        "robot_description_semantic": ParameterValue(robot_description_semantic_content,value_type=str)
     }
 
     robot_description_kinematics = {
         "robot_description_kinematics":
         load_yaml(
-            "annin_ar4_moveit_config",
+            "arms_moveit_config",
             os.path.join("config", "kinematics.yaml"),
         )
     }
 
     joint_limits = ParameterFile(
         PathJoinSubstitution([
-            FindPackageShare("annin_ar4_moveit_config"),
+            FindPackageShare("arms_moveit_config"),
             "config/joint_limits.yaml"
         ]),
         allow_substs=True,
     )
 
     # Planning Configuration
-    ompl_planning_yaml = load_yaml("annin_ar4_moveit_config",
+    ompl_planning_yaml = load_yaml("arms_moveit_config",
                                    "config/ompl_planning.yaml")
-    pilz_planning_yaml = load_yaml("annin_ar4_moveit_config",
-                                   "config/pilz_planning.yaml")
+
     planning_pipeline_config = {
         "default_planning_pipeline": "ompl",
-        "planning_pipelines": ["ompl", "pilz"],
+        "planning_pipelines": ["ompl"],
         "ompl": ompl_planning_yaml,
-        "pilz": pilz_planning_yaml,
     }
 
     moveit_controller_manager = {
@@ -85,8 +83,8 @@ def generate_launch_description():
 
     moveit_controllers = ParameterFile(
         PathJoinSubstitution([
-            FindPackageShare("annin_ar4_moveit_config"),
-            "config/controllers.yaml"
+            FindPackageShare("arms_moveit_config"),
+            "config/moveit_controllers.yaml"
         ]),
         allow_substs=True,
     )
@@ -114,7 +112,6 @@ def generate_launch_description():
             robot_description,
             robot_description_semantic,
             robot_description_kinematics,
-            joint_limits,
             planning_pipeline_config,
             trajectory_execution,
             moveit_controller_manager,
@@ -124,16 +121,16 @@ def generate_launch_description():
     )
 
     # RViz
-    rviz_base = os.path.join(
-        get_package_share_directory("annin_ar4_moveit_config"), "rviz")
-    rviz_full_config = os.path.join(rviz_base, "moveit.rviz")
+    # rviz_base = os.path.join(
+    #     get_package_share_directory("arms_moveit_config"), "rviz")
+    # rviz_full_config = os.path.join(rviz_base, "moveit.rviz")
 
     rviz_node = Node(
         package="rviz2",
         executable="rviz2",
         name="rviz2",
         output="log",
-        arguments=["-d", rviz_full_config],
+        # arguments=["-d", rviz_full_config],
         parameters=[
             robot_description,
             robot_description_semantic,
@@ -143,29 +140,28 @@ def generate_launch_description():
     )
     # Publish TF
     robot_state_publisher = Node(
-        package="robot_state_publisher",
-        executable="robot_state_publisher",
-        name="robot_state_publisher",
-        output="both",
-        parameters=[robot_description],
+        package='robot_state_publisher',
+        executable='robot_state_publisher',
+        name='robot_state_publisher',
+        output='screen',
+        parameters=[robot_description]
     )
 
-    # ros2_control using FakeSystem as hardware
-    ros2_controllers = ParameterFile(PathJoinSubstitution(
-        [FindPackageShare("annin_ar4_driver"), "config", "controllers.yaml"]),
-                                     allow_substs=True)
 
     ros2_control_node = Node(
         package="controller_manager",
         executable="ros2_control_node",
         parameters=[
             robot_description,
-            ros2_controllers,
-            {
-                "tf_prefix": tf_prefix
-            },
         ],
         output="both",
+    )
+
+    joint_state_publisher = Node(
+        package='joint_state_publisher',
+        executable='joint_state_publisher',
+        name='joint_state_publisher',
+        output='screen' 
     )
 
     joint_state_broadcaster_spawner = Node(
@@ -178,6 +174,7 @@ def generate_launch_description():
         ],
     )
 
+    
     joint_controller_spawner = Node(
         package="controller_manager",
         executable="spawner",
@@ -188,25 +185,13 @@ def generate_launch_description():
         ],
     )
 
-    gripper_controller_spawner = Node(
-        package="controller_manager",
-        executable="spawner",
-        arguments=[
-            "gripper_controller",
-            "-c",
-            "/controller_manager",
-        ],
-    )
 
     return LaunchDescription([
-        db_arg,
-        ar_model_arg,
-        tf_prefix_arg,
-        run_move_group_node,
-        rviz_node,
+        # run_move_group_node,
+        # rviz_node,
         robot_state_publisher,
-        ros2_control_node,
-        joint_state_broadcaster_spawner,
-        joint_controller_spawner,
-        gripper_controller_spawner,
+        # ros2_control_node,
+        joint_state_publisher,
+        # joint_state_broadcaster_spawner,
+        # joint_controller_spawner,
     ])

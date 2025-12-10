@@ -1,21 +1,33 @@
 from launch import LaunchDescription
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
-from launch.substitutions import Command, PathJoinSubstitution
+from launch_ros.parameter_descriptions import ParameterValue
+from launch.substitutions import Command, PathJoinSubstitution, FindExecutable
 import os
 
 def generate_launch_description():
     
-    # 使用 ament_index 获取 arms_description 包的路径
-    arm_description_dir = FindPackageShare('arms_description')
-    urdf_path = PathJoinSubstitution([arm_description_dir, 'urdf', 'cl_arms.urdf.xacro'])
+    # # 使用 ament_index 获取 arms_description 包的路径
+    # arm_description_dir = FindPackageShare('arms_description')
+    # urdf_path = PathJoinSubstitution([arm_description_dir, 'urdf', 'cl_arms.urdf.xacro'])
 
-    # # 读取 URDF
-    # with open(urdf_path, 'r') as f:
-    #     robot_desc = f.read()
+    # # # 读取 URDF
+    # # with open(urdf_path, 'r') as f:
+    # #     robot_desc = f.read()
     
-    robot_description = Command(['xacro ', urdf_path])
-        
+    # robot_description = Command(['xacro ', urdf_path])
+
+    robot_description_content = Command([
+        PathJoinSubstitution([FindExecutable(name="xacro")]),
+        " ",
+        PathJoinSubstitution([
+            FindPackageShare("arms_moveit_config"),
+            "config",
+            "cl_arms.urdf.xacro",
+        ]),
+    ])
+    robot_description = {"robot_description": ParameterValue(robot_description_content,value_type=str)}
+      
     # 创建节点
     return LaunchDescription([
         Node(
@@ -29,7 +41,7 @@ def generate_launch_description():
             executable='robot_state_publisher',
             name='robot_state_publisher',
             output='screen',
-            parameters=[{'robot_description': robot_description}]
+            parameters=[robot_description]
         ),
         Node(
             package='rviz2',
