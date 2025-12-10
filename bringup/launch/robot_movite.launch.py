@@ -104,7 +104,7 @@ def generate_launch_description():
     }
 
     # Start the actual move_group node/action server
-    run_move_group_node = Node(
+    move_group_node = Node(
         package="moveit_ros_move_group",
         executable="move_group",
         output="screen",
@@ -122,7 +122,7 @@ def generate_launch_description():
 
     # RViz
     # rviz_base = os.path.join(
-    #     get_package_share_directory("arms_moveit_config"), "rviz")
+    #   get_package_share_directory("arms_moveit_config"), "rviz")
     # rviz_full_config = os.path.join(rviz_base, "moveit.rviz")
 
     rviz_node = Node(
@@ -134,8 +134,8 @@ def generate_launch_description():
         parameters=[
             robot_description,
             robot_description_semantic,
-            robot_description_kinematics,
-            planning_pipeline_config,
+            # robot_description_kinematics,
+            # planning_pipeline_config,
         ],
     )
     # Publish TF
@@ -164,34 +164,11 @@ def generate_launch_description():
         output='screen' 
     )
 
-    joint_state_broadcaster_spawner = Node(
-        package="controller_manager",
-        executable="spawner",
-        arguments=[
-            "joint_state_broadcaster",
-            "-c",
-            "/controller_manager",
-        ],
-    )
-
-    
-    joint_controller_spawner = Node(
-        package="controller_manager",
-        executable="spawner",
-        arguments=[
-            "joint_trajectory_controller",
-            "-c",
-            "/controller_manager",
-        ],
-    )
-
 
     return LaunchDescription([
-        # run_move_group_node,
-        # rviz_node,
+        move_group_node,
+        rviz_node,
         robot_state_publisher,
         # ros2_control_node,
-        joint_state_publisher,
-        # joint_state_broadcaster_spawner,
-        # joint_controller_spawner,
+        # joint_state_publisher,
     ])
